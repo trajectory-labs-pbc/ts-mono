@@ -15,6 +15,8 @@ export interface FileLogItemView {
    *  and lists the whole `logDir`). */
   currentDir: string;
   showRetriedLogs: boolean;
+  /** Tasks view only: show every run of a task rather than one row per task. */
+  showAllRuns?: boolean;
 }
 
 /**
@@ -70,6 +72,15 @@ export const fileLogItem = (
   view: FileLogItemView
 ): FileLogItem | undefined => {
   if (!view.showRetriedLogs && logFile.retried) return undefined;
+  // Tasks view collapses a task's runs to its newest, so the table reads one
+  // row per task. Folder mode lists files and is left alone.
+  if (
+    view.mode === "tasks" &&
+    !view.showAllRuns &&
+    logFile.supersededByTask === true
+  ) {
+    return undefined;
+  }
   const identity = fileLogIdentity(logFile.name, view);
   return identity === undefined
     ? undefined

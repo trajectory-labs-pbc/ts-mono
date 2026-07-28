@@ -62,6 +62,8 @@ export const LogsPanel: FC<LogsPanelProps> = ({
   const setShowRetriedLogs = useUserSettings(
     (state) => state.setShowRetriedLogs
   );
+  const showAllRuns = useUserSettings((state) => state.showAllRuns);
+  const setShowAllRuns = useUserSettings((state) => state.setShowAllRuns);
   const logDir = useLogDir();
   const { gridStateByScope, patchGridState } = useLogsListing();
 
@@ -89,7 +91,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({
   const universe =
     scopeKey === undefined
       ? undefined
-      : `${scopeKey}::retried=${showRetriedLogs}`;
+      : `${scopeKey}::retried=${showRetriedLogs}::allRuns=${showAllRuns}`;
 
   const flowData = useFlowQuery(logPath || "").data;
 
@@ -100,8 +102,8 @@ export const LogsPanel: FC<LogsPanelProps> = ({
   }, [logDir]);
 
   const itemView: FileLogItemView = useMemo(
-    () => ({ mode, logDir, currentDir, showRetriedLogs }),
-    [mode, logDir, currentDir, showRetriedLogs]
+    () => ({ mode, logDir, currentDir, showRetriedLogs, showAllRuns }),
+    [mode, logDir, currentDir, showRetriedLogs, showAllRuns]
   );
 
   const isCandidate = useCallback(
@@ -144,6 +146,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({
   }, [overview, evalSet, currentDir, logDir]);
 
   const hasRetriedLogs = (overview?.retriedCount ?? 0) > 0;
+  const hasCollapsedRuns = (overview?.supersededCount ?? 0) > 0;
 
   // In the folder view, scope the Metrics list to logs under the current
   // directory so descending into a subfolder shows only that folder's metrics.
@@ -301,6 +304,21 @@ export const LogsPanel: FC<LogsPanelProps> = ({
             label="Reset Filters"
             icon={ApplicationIcons.filter}
             onClick={handleResetFilters}
+          />
+        )}
+
+        {mode === "tasks" && hasCollapsedRuns && (
+          <NavbarButton
+            key="show-all-runs"
+            label="Show All Runs"
+            icon={
+              showAllRuns
+                ? ApplicationIcons.toggle.on
+                : ApplicationIcons.toggle.off
+            }
+            latched={showAllRuns}
+            subtle
+            onClick={() => setShowAllRuns(!showAllRuns)}
           />
         )}
 

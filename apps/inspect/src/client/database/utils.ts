@@ -37,5 +37,6 @@ export function toLogOverview(header: EvalHeader): LogPreview {
     started_at: evalSpec.created,
     completed_at: stats?.completed_at,
     primary_metric,
+    metadata: header.metadata,
   };
 }

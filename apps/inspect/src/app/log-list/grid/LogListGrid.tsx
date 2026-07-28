@@ -101,6 +101,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
   const {
     columns,
     visibility,
+    wrappedColumns,
     getValue,
     getComparator,
     getFilterType,
@@ -373,6 +374,10 @@ export const LogListGrid: FC<LogListGridProps> = ({
           onSelectedRowChange={handleSelectedRowChange}
           onRowActivate={handleRowActivate}
           autoFocus
+          // Three clamped lines at the cell's 12px/1.35 line-height, plus the
+          // cell's 8px vertical padding.
+          multiline={wrappedColumns}
+          rowHeight={wrappedColumns ? 62 : undefined}
           ariaLabel="Evaluation logs"
           loading={totalRowCount === 0 && busy}
         />

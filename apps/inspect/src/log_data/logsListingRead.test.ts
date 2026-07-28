@@ -19,7 +19,7 @@ import {
   type DatabaseService,
 } from "../client/database/service";
 
-import { computeLogsWithRetried, type LogListingRow } from "./logListing";
+import { computeListingRows, type LogListingRow } from "./logListing";
 import { setRows, writeListing } from "./logsContent";
 import {
   readLogsListing,
@@ -109,9 +109,10 @@ describe("readLogsListing", () => {
       getComparator: () => undefined,
     };
 
-    // The seam marks retried runs over its scan; mirror that on the
-    // in-memory side so the parity compare sees identical rows.
-    const expected = applyListingQuery(computeLogsWithRetried(source), query);
+    // The seam applies both cross-row groupings (retried dedup, then task
+    // supersession) over its scan; mirror that on the in-memory side so the
+    // parity compare sees identical rows.
+    const expected = applyListingQuery(computeListingRows(source), query);
     const actual = await readLogsListing(
       "/test/logs",
       "/test/logs",

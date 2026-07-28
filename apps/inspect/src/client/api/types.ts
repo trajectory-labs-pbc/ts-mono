@@ -441,6 +441,10 @@ export interface LogPreview {
   completed_at?: EvalStats["completed_at"];
 
   primary_metric?: EvalMetric;
+
+  /** Eval metadata (eval-time plus post-hoc edits), carried by the listing so
+   *  metadata columns render without fetching every log's header. */
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -527,6 +531,7 @@ export interface Log extends LogHandle {
   started_at?: string;
   completed_at?: string;
   primary_metric?: EvalMetric;
+  metadata?: Record<string, unknown> | null;
 
   header?: LogHeader;
   derived?: LogDerived;

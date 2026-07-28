@@ -64,6 +64,18 @@ const byMetricField = (metricName: string): string => `metric_${metricName}`;
 export type LogListMode = "logs" | "tasks";
 export type ScoresViewMode = "by-metric" | "per-scorer";
 
+/** Reads a string field out of `metadata.attack`, the eval-level prompt-injection
+ *  framing a task author writes via `Task(metadata=...)`. */
+const attackField = (
+  metadata: Record<string, unknown> | undefined,
+  key: "task" | "goal" | "entered_via"
+): string | undefined => {
+  const attack = metadata?.["attack"];
+  if (attack === null || typeof attack !== "object") return undefined;
+  const value = (attack as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+};
+
 export const useLogListColumns = (
   mode: LogListMode = "logs",
   /**
@@ -86,6 +98,9 @@ export const useLogListColumns = (
   columns: LogListColumn[];
   /** Visibility map keyed by column id — passed to the DataGrid. */
   visibility: Record<string, boolean>;
+  /** True when the wrapped framing columns are part of the view, so the grid
+   *  can give rows the height wrapped text needs. */
+  wrappedColumns: boolean;
   /** Subset passed to the ColumnSelectorPopover so the picker only lists
    *  checkboxes for the currently active view mode. A lightweight shim
    *  (`colId` + `headerName`) of the full column defs. */
@@ -115,6 +130,29 @@ export const useLogListColumns = (
   // listing loads there are simply no scorer columns yet, and listing errors
   // render in LogsPanel's error surface.
   const scorerMap = useScoreSchema(logDir, scopeDir).data ?? kNoScorerMap;
+
+  const listingRows = useLogListing(logDir).data ?? kNoListingRows;
+  const hasSampleLimits = useMemo(() => {
+    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
+    return listingRows.some(
+      (row) =>
+        (!prefix || row.name.startsWith(prefix)) &&
+        (row.header?.sampleLimits.length ?? 0) > 0
+    );
+  }, [listingRows, scopeDir]);
+
+  const hasAttackMetadata = useMemo(() => {
+    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
+    return listingRows.some((row) => {
+      if (prefix && !row.name.startsWith(prefix)) return false;
+      const attack = row.metadata?.["attack"];
+      return attack !== null && typeof attack === "object";
+    });
+  }, [listingRows, scopeDir]);
+
+  // Wrapped layout is on exactly when the framing columns are, so the task
+  // column's own cell can match their multi-line shape.
+  const wrapCells = hasAttackMetadata;
 
   const allColumns = useMemo((): LogListColumn[] => {
     const baseColumns: LogListColumn[] = [
@@ -173,7 +211,12 @@ export const useLogListColumns = (
               <span className={styles.taskText}>{value}</span>
             );
           return (
-            <div className={styles.nameCell}>
+            <div
+              className={clsx(
+                styles.nameCell,
+                wrapCells && styles.wrapNameCell
+              )}
+            >
               {href ? (
                 <a
                   href={href}
@@ -485,6 +528,63 @@ export const useLogListColumns = (
         },
       },
       {
+        id: "attackTask",
+        header: "User task",
+        size: 260,
+        minSize: 140,
+        accessorFn: (row) => attackField(row.metadata, "task"),
+        titleValue: (row) => attackField(row.metadata, "task"),
+        cell: ({ getValue }) => {
+          const value = getValue<string | undefined>();
+          if (!value) return <EmptyCell />;
+          return <div className={styles.wrapCell}>{value}</div>;
+        },
+      },
+      {
+        id: "attackGoal",
+        header: "Attack goal",
+        size: 320,
+        minSize: 160,
+        accessorFn: (row) => attackField(row.metadata, "goal"),
+        titleValue: (row) => attackField(row.metadata, "goal"),
+        cell: ({ getValue }) => {
+          const value = getValue<string | undefined>();
+          if (!value) return <EmptyCell />;
+          return <div className={styles.wrapCell}>{value}</div>;
+        },
+      },
+      {
+        id: "attackEnteredVia",
+        header: "Entered via",
+        size: 260,
+        minSize: 140,
+        accessorFn: (row) => attackField(row.metadata, "entered_via"),
+        titleValue: (row) => attackField(row.metadata, "entered_via"),
+        cell: ({ getValue }) => {
+          const value = getValue<string | undefined>();
+          if (!value) return <EmptyCell />;
+          return <div className={styles.wrapCell}>{value}</div>;
+        },
+      },
+      {
+        id: "taskRunCount",
+        header: "Runs",
+        size: 70,
+        minSize: 55,
+        maxSize: 90,
+        meta: { align: "center", sortComparator: numberCompare },
+        accessorFn: (row) => row.taskRunCount,
+        titleValue: (row) =>
+          row.taskRunCount === undefined
+            ? undefined
+            : `${row.taskRunCount} run${row.taskRunCount === 1 ? "" : "s"} of this task`,
+        cell: ({ getValue }) => {
+          const value = getValue<number | undefined>();
+          if (value === undefined) return <EmptyCell />;
+          return <div>{value}</div>;
+        },
+      },
+      {
         id: "tags",
         header: "Tags",
         size: 80,
@@ -710,6 +810,10 @@ export const useLogListColumns = (
       const tasksFieldOrder = [
         "status",
         "task",
+        "attackTask",
+        "attackGoal",
+        "attackEnteredVia",
+        "taskRunCount",
         "model",
         "taskArgs",
         "tags",
@@ -770,19 +874,15 @@ export const useLogListColumns = (
     }
 
     return allCols;
-  }, [scorerMap, mode]);
+  }, [scorerMap, mode, wrapCells]);
 
   // Auto-promote `sampleLimits` to default-visible when any in-scope log
   // has a sample that ended with a limit (an ingestion-derived header fact).
-  const listingRows = useLogListing(logDir).data ?? kNoListingRows;
-  const hasSampleLimits = useMemo(() => {
-    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
-    return listingRows.some(
-      (row) =>
-        (!prefix || row.name.startsWith(prefix)) &&
-        (row.header?.sampleLimits.length ?? 0) > 0
-    );
-  }, [listingRows, scopeDir]);
+
+
+  // Attack columns are meaningless for a log dir that carries no attack
+  // framing, so they default hidden there rather than showing empty cells.
+
 
   // Default hidden columns per mode
   const defaultHiddenFields = useMemo(() => {
@@ -806,8 +906,24 @@ export const useLogListColumns = (
     hidden.add("sampleErrors");
     if (!hasSampleLimits) hidden.add("sampleLimits");
     hidden.add("errorMessage");
+    if (!hasAttackMetadata) {
+      hidden.add("attackTask");
+      hidden.add("attackGoal");
+      hidden.add("attackEnteredVia");
+    } else if (mode === "tasks") {
+      // An attack-review table is read across, not down: the framing columns
+      // are wide, so eval plumbing that says nothing about the attack starts
+      // hidden. All of it stays one click away in the column picker.
+      hidden.add("taskArgs");
+      hidden.add("tags");
+      hidden.add("totalSamples");
+      hidden.add("totalTokens");
+      hidden.add("duration");
+    }
+    // Run count only means something where a task's runs are collapsed.
+    if (mode !== "tasks" || !hasAttackMetadata) hidden.add("taskRunCount");
     return hidden;
-  }, [mode, hasSampleLimits]);
+  }, [mode, hasSampleLimits, hasAttackMetadata]);
 
   // Determine whether a column belongs to the active scores view mode. Base
   // columns (neither prefix) always match. Per-scorer and by-metric columns
@@ -894,6 +1010,7 @@ export const useLogListColumns = (
   return {
     columns: allColumns,
     visibility,
+    wrappedColumns: hasAttackMetadata,
     pickerColumns,
     getValue,
     getComparator,

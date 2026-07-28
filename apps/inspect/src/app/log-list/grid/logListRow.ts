@@ -56,6 +56,10 @@ export const buildLogListRow = (item: LogListItem): LogListRow => {
     sampleErrors: details?.sampleErrorCount,
     sampleLimits: derived?.sample_limits,
     errorMessage: details?.error?.message,
+    // From the flat listing tier, not `details`: the point of carrying eval
+    // metadata in listing.json is that these columns cost no header fetch.
+    metadata: log?.metadata ?? undefined,
+    taskRunCount: item.type === "file" ? item.log.taskRunCount : undefined,
   };
 
   // Individual scorer columns, keyed `score_<scorer>/<metric>`.

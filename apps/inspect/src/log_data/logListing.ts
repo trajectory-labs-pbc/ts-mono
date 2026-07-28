@@ -20,7 +20,18 @@ import { useLogs } from "./logsContent";
 const isActiveStatus = (status: EvalLogStatus | undefined) =>
   status === "started" || status === "success";
 
-export type LogListingRow = Log & { retried?: boolean };
+export type LogListingRow = Log & {
+  retried?: boolean;
+  /**
+   * A run of a task that has a newer run. Distinct from `retried`, which keys
+   * on `task_id` and means "the same run, attempted again": independent runs of
+   * one task each get their own `task_id`, so retried-dedup never collapses
+   * them. Tasks view hides these to get one row per task.
+   */
+  supersededByTask?: boolean;
+  /** Total runs of this row's task in the listing. Only set on the newest. */
+  taskRunCount?: number;
+};
 
 /**
  * Pure dedup logic for {@link useLogListing}.
@@ -71,6 +82,45 @@ export const computeLogsWithRetried = (logs: Log[]): LogListingRow[] => {
   );
 };
 
+/**
+ * Marks every run of a task except its newest as {@link
+ * LogListingRow.supersededByTask}, and stamps the newest with the task's total
+ * run count. Grouped by task NAME, not `task_id`: independent runs of one task
+ * each carry their own `task_id`, which is exactly the case retried-dedup
+ * cannot see.
+ *
+ * Newest is by `completed_at`, falling back to filename descending when a run
+ * has no completion time (still running, or a pre-`completed_at` log).
+ */
+export const computeSupersededByTask = (
+  logs: LogListingRow[]
+): LogListingRow[] => {
+  const byTask = logs.reduce((acc: Record<string, LogListingRow[]>, log) => {
+    if (log.task) (acc[log.task] ??= []).push(log);
+    return acc;
+  }, {});
+
+  const newestByName: Record<string, number> = {};
+  for (const runs of Object.values(byTask)) {
+    const newest = [...runs].sort((a, b) => {
+      const at = a.completed_at ?? "";
+      const bt = b.completed_at ?? "";
+      if (at !== bt) return bt.localeCompare(at);
+      return b.name.localeCompare(a.name);
+    })[0];
+    if (newest !== undefined) newestByName[newest.name] = runs.length;
+  }
+
+  return logs.map((log) => {
+    const runCount = newestByName[log.name];
+    if (runCount !== undefined) {
+      return { ...log, supersededByTask: false, taskRunCount: runCount };
+    }
+    // No task name means nothing to group on, so it can never be superseded.
+    return { ...log, supersededByTask: log.task ? true : undefined };
+  });
+};
+
 export const useLogListing = (logDir: string): AsyncData<LogListingRow[]> => {
   const logs = useLogs(logDir);
   // Deferred so the burst of row flushes during initial sync can't block
@@ -78,5 +128,9 @@ export const useLogListing = (logDir: string): AsyncData<LogListingRow[]> => {
   // catches up when the main thread is idle.
   const deferredLogs = useDeferredValue(logs);
 
-  return useMapAsyncData(deferredLogs, computeLogsWithRetried);
+  return useMapAsyncData(deferredLogs, computeListingRows);
 };
+
+/** Both grouping passes, in order: retried-dedup then task supersession. */
+export const computeListingRows = (logs: Log[]): LogListingRow[] =>
+  computeSupersededByTask(computeLogsWithRetried(logs));

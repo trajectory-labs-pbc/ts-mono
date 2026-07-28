@@ -13,6 +13,9 @@ import { RunningMetric } from "../../../client/api/types";
 import { useTotalSampleCount } from "../../../state/hooks";
 
 import { CollapsedTitleBar } from "./CollapsedTitleBar";
+import { AttackSummaryBand } from "../../samples/attack/AttackSummaryBand";
+import { parseAttackMetadata } from "../../samples/attack/attackMetadata";
+
 import { PrimaryBar } from "./PrimaryBar";
 import { SecondaryBar } from "./SecondaryBar";
 import styles from "./TitleView.module.css";
@@ -25,6 +28,8 @@ interface TitleViewProps {
   evalStats?: EvalStats;
   status?: EvalLogStatus;
   tags?: string[];
+  /** Eval metadata (edit-aware), read for the prompt-injection framing. */
+  metadata?: Record<string, unknown> | null;
   collapsed?: boolean;
 }
 
@@ -39,9 +44,14 @@ export const TitleView: FC<TitleViewProps> = ({
   status,
   runningMetrics,
   tags,
+  metadata,
   collapsed,
 }) => {
   const totalSampleCount = useTotalSampleCount();
+  // The task page is where a reviewer arrives from the task table, so it has to
+  // restate what the columns said — otherwise the framing is only visible one
+  // more click in, inside a single sample.
+  const attack = parseAttackMetadata(metadata);
 
   return (
     <nav
@@ -70,6 +80,7 @@ export const TitleView: FC<TitleViewProps> = ({
             status={status}
             sampleCount={totalSampleCount}
           />
+          {attack ? <AttackSummaryBand attack={attack} /> : null}
         </div>
       </div>
       <div className={styles.collapsedSlot} aria-hidden={!collapsed}>
@@ -80,6 +91,7 @@ export const TitleView: FC<TitleViewProps> = ({
           status={status}
           sampleCount={totalSampleCount}
         />
+        {attack ? <AttackSummaryBand attack={attack} compact /> : null}
       </div>
     </nav>
   );

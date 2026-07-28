@@ -90,10 +90,14 @@ import {
   useFullSampleMessageUrlBuilder,
   useLogOrSampleRouteParams,
   useRoutePrefix,
+  useSampleEventUrl,
+  useSampleMessageUrl,
   useSampleUrlBuilder,
 } from "../routing/url";
 import { openInNewTab } from "../shared/openInNewTab";
 
+import { attackLocationHint } from "./attack/attackMetadata";
+import { useAttackAnnotation } from "./attack/useAttackAnnotation";
 import {
   messagesFromEvents,
   type MessagesFromEventsState,
@@ -255,6 +259,20 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const effectiveMessages = isChunked
     ? (chunkedMessages.data ?? [])
     : sampleMessages;
+
+  // Prompt-injection framing from `metadata.attack`: badges the injected row and
+  // gives the toolbar a jump target. Inert for samples without that metadata.
+  const attackAnnotation = useAttackAnnotation({
+    metadata: sample?.metadata,
+    events: sampleEvents,
+    messages: effectiveMessages,
+  });
+  const attackEventUrl = useSampleEventUrl(
+    attackAnnotation.location.eventId ?? ""
+  );
+  const attackMessageUrl = useSampleMessageUrl(
+    attackAnnotation.location.messageId
+  );
 
   // Focus the panel when it loads
   useEffect(() => {
@@ -469,15 +487,64 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const transcriptEventNodeContext = useMemo(
     () =>
       mergeTranscriptLabelContext(
-        scans.eventNodeContext,
+        mergeTranscriptLabelContext(
+          scans.eventNodeContext,
+          attackAnnotation.labels
+        ),
         transcriptSearchLabels
       ),
-    [scans.eventNodeContext, transcriptSearchLabels]
+    [scans.eventNodeContext, attackAnnotation.labels, transcriptSearchLabels]
   );
+
+  // Same badge on the Messages tab. Highlighting the row is only turned on when
+  // the attack contributed a label, so search-only labelling keeps its look.
+  const attackMessageLabels = attackAnnotation.labels?.messageLabels;
+  const messagesLabels = useMemo(() => {
+    if (!attackMessageLabels) return messagesSearchLabels;
+    return {
+      messageLabels: {
+        ...attackMessageLabels,
+        ...messagesSearchLabels?.messageLabels,
+      },
+      highlight: true,
+    };
+  }, [attackMessageLabels, messagesSearchLabels]);
 
   // Build the toolbar in left-to-right groups separated by thin dividers:
   //   [tab-specific view controls] | [shared sample actions] | [Search]
   const tools: ReactNode[] = [];
+
+  // Leftmost, so the first click on an attack sample is "show me the injection".
+  // Only the transcript and messages tabs render rows a jump can land on.
+  if (
+    attackAnnotation.attack?.payload !== undefined &&
+    (effectiveSelectedTab === kSampleTranscriptTabId ||
+      effectiveSelectedTab === kSampleMessagesTabId)
+  ) {
+    const { eventId, messageId } = attackAnnotation.location;
+    // Stay on the tab the reviewer is reading when that tab can show the row.
+    const jumpUrl =
+      effectiveSelectedTab === kSampleMessagesTabId && messageId !== undefined
+        ? attackMessageUrl
+        : eventId !== undefined
+          ? attackEventUrl
+          : attackMessageUrl;
+    tools.push(
+      <ToolButton
+        key="sample-jump-to-attack"
+        label={`Jump to ${attackAnnotation.attack.label.toLowerCase()}`}
+        icon={ApplicationIcons.attack}
+        title={attackLocationHint(attackAnnotation.location)}
+        disabled={jumpUrl === undefined}
+        onClick={() => {
+          if (jumpUrl === undefined) return;
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          navigate(jumpUrl);
+        }}
+        subtle
+      />
+    );
+  }
 
   if (effectiveSelectedTab === kSampleTranscriptTabId) {
     const label = isNoneFilter
@@ -911,7 +978,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
                   initialMessageId={sampleDetailNavigation.message}
                   followRequested={sampleDetailNavigation.follow}
                   display={chatDisplay}
-                  labels={messagesSearchLabels}
+                  labels={messagesLabels}
                   linking={chatLinking}
                   onNativeFindChanged={setNativeFind}
                   scrollRef={scrollRef}

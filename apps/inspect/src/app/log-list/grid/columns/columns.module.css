@@ -85,3 +85,40 @@
   min-width: 0;
   flex: 1;
 }
+
+/* Wrapped cell for the wide framing columns. The base `.cell` is nowrap +
+ * ellipsis, which hid most of an attack goal — and reading those is the whole
+ * point of the task table. Clamped so a long value cannot grow the row past
+ * the height the virtualizer was told to expect. */
+.wrapCell {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+  line-height: 1.35;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Task-name cell in the wrapped (framing) layout: hyphenated task ids are
+ * long, and truncating the row's identity is worse than truncating its
+ * description. Anywhere-breaking because the ids have no spaces. */
+.wrapNameCell {
+  align-items: flex-start;
+}
+
+.wrapNameCell .rowLink {
+  align-items: flex-start;
+}
+
+.wrapNameCell .taskText {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
