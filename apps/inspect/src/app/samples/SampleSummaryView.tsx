@@ -27,6 +27,8 @@ import { formatModelText } from "../../utils/evalModel";
 import { formatDateTime, formatTime } from "../../utils/format";
 import { truncateMarkdown } from "../../utils/markdown";
 
+import { AttackSummaryBand } from "./attack/AttackSummaryBand";
+import { parseAttackMetadata } from "./attack/attackMetadata";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { SampleErrorView } from "./error/SampleErrorView";
 import { ScorePanel } from "./header-v2/ScorePanel";
@@ -240,6 +242,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     ? sample.invalidation
     : undefined;
 
+  // Read from either shape: this header is fed the summary on the inline sample
+  // route and the full sample elsewhere, and both carry metadata.
+  const attack = parseAttackMetadata(sample.metadata);
+
   if (collapsed) {
     return (
       <div id={`sample-heading-${parent_id}`} className={styles.root}>
@@ -396,6 +402,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
           </div>
         ) : null}
       </div>
+      {attack ? <AttackSummaryBand attack={attack} /> : null}
       {fields.error ? (
         <div className={styles.errorBlock}>
           <SampleErrorView message={fields.error} />

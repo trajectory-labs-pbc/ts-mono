@@ -19,6 +19,7 @@ export const ApplicationIcons = {
   "color-scales": "bi bi-palette",
   loading: "bi bi-arrow-clockwise",
   scoringSidebar: "bi bi-radar",
+  attack: "bi bi-crosshair",
   toggle: {
     // combination of toggle-on and toggle2-off looked best for our default button font size
     on: "bi bi-toggle-on",
