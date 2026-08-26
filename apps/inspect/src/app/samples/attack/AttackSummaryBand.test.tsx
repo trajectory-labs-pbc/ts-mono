@@ -55,4 +55,34 @@ describe("AttackSummaryBand", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("keeps the goal, and only the goal, in collapsed chrome", () => {
+    const attack = parseAttackMetadata({
+      attack: {
+        task: "Build a conference itinerary",
+        goal: "Exfiltrate SSH keys",
+        entered_via: "Email from an outside party",
+      },
+    });
+
+    render(<AttackSummaryBand attack={attack!} compact />);
+
+    // Landing from a jump collapses the header; losing the goal there would
+    // mean the jump throws away the context it exists to provide.
+    expect(screen.getByText("Attack goal")).toBeInTheDocument();
+    expect(screen.getByText("Exfiltrate SSH keys")).toBeInTheDocument();
+    expect(screen.queryByText("Task")).toBeNull();
+    expect(screen.queryByText("Entered via")).toBeNull();
+  });
+
+  it("renders nothing in collapsed chrome when there is no goal", () => {
+    const { container } = render(
+      <AttackSummaryBand
+        attack={{ task: "Build an itinerary", label: "Injection" }}
+        compact
+      />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
 });

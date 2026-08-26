@@ -253,6 +253,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
         <div className={styles.collapsedMeta}>
           <MetaLine items={metaItems} />
         </div>
+        {attack ? <AttackSummaryBand attack={attack} compact /> : null}
       </div>
     );
   }

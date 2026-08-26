@@ -33,3 +33,12 @@
 .goal {
   font-weight: 500;
 }
+
+.compact {
+  padding: 4px 0.5rem;
+  row-gap: 0;
+}
+
+.oneLine {
+  -webkit-line-clamp: 1;
+}
