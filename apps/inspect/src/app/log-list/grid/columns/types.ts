@@ -28,5 +28,7 @@ export interface LogListRow {
   sampleErrors?: number;
   sampleLimits?: string;
   errorMessage?: string;
+  metadata?: Record<string, unknown>;
+  taskRunCount?: number;
   [key: string]: unknown; // For dynamic score columns
 }

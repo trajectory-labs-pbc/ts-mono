@@ -64,6 +64,18 @@ const byMetricField = (metricName: string): string => `metric_${metricName}`;
 export type LogListMode = "logs" | "tasks";
 export type ScoresViewMode = "by-metric" | "per-scorer";
 
+/** Reads a string field out of `metadata.attack`, the eval-level prompt-injection
+ *  framing a task author writes via `Task(metadata=...)`. */
+const attackField = (
+  metadata: Record<string, unknown> | undefined,
+  key: "task" | "goal" | "entered_via"
+): string | undefined => {
+  const attack = metadata?.["attack"];
+  if (attack === null || typeof attack !== "object") return undefined;
+  const value = (attack as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+};
+
 export const useLogListColumns = (
   mode: LogListMode = "logs",
   /**
@@ -485,6 +497,63 @@ export const useLogListColumns = (
         },
       },
       {
+        id: "attackTask",
+        header: "User task",
+        size: 260,
+        minSize: 140,
+        accessorFn: (row) => attackField(row.metadata, "task"),
+        titleValue: (row) => attackField(row.metadata, "task"),
+        cell: ({ getValue }) => {
+          const value = getValue<string | undefined>();
+          if (!value) return <EmptyCell />;
+          return <div className={styles.nameCell}>{value}</div>;
+        },
+      },
+      {
+        id: "attackGoal",
+        header: "Attack goal",
+        size: 320,
+        minSize: 160,
+        accessorFn: (row) => attackField(row.metadata, "goal"),
+        titleValue: (row) => attackField(row.metadata, "goal"),
+        cell: ({ getValue }) => {
+          const value = getValue<string | undefined>();
+          if (!value) return <EmptyCell />;
+          return <div className={styles.nameCell}>{value}</div>;
+        },
+      },
+      {
+        id: "attackEnteredVia",
+        header: "Entered via",
+        size: 260,
+        minSize: 140,
+        accessorFn: (row) => attackField(row.metadata, "entered_via"),
+        titleValue: (row) => attackField(row.metadata, "entered_via"),
+        cell: ({ getValue }) => {
+          const value = getValue<string | undefined>();
+          if (!value) return <EmptyCell />;
+          return <div className={styles.nameCell}>{value}</div>;
+        },
+      },
+      {
+        id: "taskRunCount",
+        header: "Runs",
+        size: 70,
+        minSize: 55,
+        maxSize: 90,
+        meta: { align: "center", sortComparator: numberCompare },
+        accessorFn: (row) => row.taskRunCount,
+        titleValue: (row) =>
+          row.taskRunCount === undefined
+            ? undefined
+            : `${row.taskRunCount} run${row.taskRunCount === 1 ? "" : "s"} of this task`,
+        cell: ({ getValue }) => {
+          const value = getValue<number | undefined>();
+          if (value === undefined) return <EmptyCell />;
+          return <div>{value}</div>;
+        },
+      },
+      {
         id: "tags",
         header: "Tags",
         size: 80,
@@ -710,6 +779,10 @@ export const useLogListColumns = (
       const tasksFieldOrder = [
         "status",
         "task",
+        "attackTask",
+        "attackGoal",
+        "attackEnteredVia",
+        "taskRunCount",
         "model",
         "taskArgs",
         "tags",
@@ -784,6 +857,17 @@ export const useLogListColumns = (
     );
   }, [listingRows, scopeDir]);
 
+  // Attack columns are meaningless for a log dir that carries no attack
+  // framing, so they default hidden there rather than showing empty cells.
+  const hasAttackMetadata = useMemo(() => {
+    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
+    return listingRows.some((row) => {
+      if (prefix && !row.name.startsWith(prefix)) return false;
+      const attack = row.metadata?.["attack"];
+      return attack !== null && typeof attack === "object";
+    });
+  }, [listingRows, scopeDir]);
+
   // Default hidden columns per mode
   const defaultHiddenFields = useMemo(() => {
     const hidden = new Set<string>();
@@ -806,8 +890,24 @@ export const useLogListColumns = (
     hidden.add("sampleErrors");
     if (!hasSampleLimits) hidden.add("sampleLimits");
     hidden.add("errorMessage");
+    if (!hasAttackMetadata) {
+      hidden.add("attackTask");
+      hidden.add("attackGoal");
+      hidden.add("attackEnteredVia");
+    } else if (mode === "tasks") {
+      // An attack-review table is read across, not down: the framing columns
+      // are wide, so eval plumbing that says nothing about the attack starts
+      // hidden. All of it stays one click away in the column picker.
+      hidden.add("taskArgs");
+      hidden.add("tags");
+      hidden.add("totalSamples");
+      hidden.add("totalTokens");
+      hidden.add("duration");
+    }
+    // Run count only means something where a task's runs are collapsed.
+    if (mode !== "tasks" || !hasAttackMetadata) hidden.add("taskRunCount");
     return hidden;
-  }, [mode, hasSampleLimits]);
+  }, [mode, hasSampleLimits, hasAttackMetadata]);
 
   // Determine whether a column belongs to the active scores view mode. Base
   // columns (neither prefix) always match. Per-scorer and by-metric columns

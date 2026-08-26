@@ -10,7 +10,7 @@ import {
 import { directoryRelativeUrl, rootName } from "../utils/uri";
 
 import { getDatabaseService } from "./databaseServiceInstance";
-import { computeLogsWithRetried, type LogListingRow } from "./logListing";
+import { computeListingRows, type LogListingRow } from "./logListing";
 import { getLogRows, isCacheOnlyListingScope } from "./logsContent";
 
 /**
@@ -58,7 +58,9 @@ const scanRows = async (logDir: string, prefix: string): Promise<Log[]> => {
  * `prefix` narrows the scan (folder mode lists a subdirectory). Retried
  * grouping keys on a row's exact parent directory, so a boundary-safe
  * prefix scan never splits a group and the marking matches a whole-dir
- * scan's.
+ * scan's. Task supersession instead keys on task name across the scan, which
+ * a prefix scan CAN split — safe only because the flag is read exclusively in
+ * tasks mode, whose scan is the whole log dir.
  */
 const scanListingRows = async <TRow>(
   logDir: string,
@@ -68,7 +70,7 @@ const scanListingRows = async <TRow>(
 ): Promise<TRow[]> => {
   const scanned = await scanRows(logDir, prefix);
   const rows: TRow[] = [];
-  for (const log of computeLogsWithRetried(scanned)) {
+  for (const log of computeListingRows(scanned)) {
     const row = toRow(log);
     if (row !== undefined && plan.matches(row)) rows.push(row);
   }
@@ -114,6 +116,9 @@ export interface LogsOverview {
   /** Retried runs in the view universe pre-hiding — drives the
    *  "Show Retried Logs" toggle's visibility. */
   retriedCount: number;
+  /** Runs collapsed into a newer run of the same task, pre-hiding — drives
+   *  the tasks view's "Show All Runs" toggle. */
+  supersededCount: number;
   /** Set when exactly one file row exists (single-log workspace redirect). */
   soleFileName: string | undefined;
   /** Folder-mode: the current directory's immediate subdirectories. */
@@ -183,12 +188,13 @@ export const readLogsOverview = async (
   view: LogsOverviewView
 ): Promise<LogsOverview> => {
   const scanned = await scanRows(logDir, logDir);
-  const rows = computeLogsWithRetried(scanned);
+  const rows = computeListingRows(scanned);
 
   const taskIds = new Set<string>();
   let fileCount = 0;
   let startedCount = 0;
   let retriedCount = 0;
+  let supersededCount = 0;
   let soleFileName: string | undefined;
   for (const log of rows) {
     if (log.task_id) taskIds.add(log.task_id);
@@ -196,6 +202,11 @@ export const readLogsOverview = async (
     if (log.retried) {
       retriedCount += 1;
       if (!view.showRetriedLogs) continue;
+    }
+    if (log.supersededByTask) {
+      supersededCount += 1;
+      // Counted, not skipped: fileCount is the folder view's row count and
+      // task collapsing only applies to the tasks view.
     }
     fileCount += 1;
     soleFileName = fileCount === 1 ? log.name : undefined;
@@ -207,6 +218,7 @@ export const readLogsOverview = async (
     fileCount,
     startedCount,
     retriedCount,
+    supersededCount,
     soleFileName,
     folders:
       view.folderDir === undefined ? [] : deriveFolders(rows, view.folderDir),

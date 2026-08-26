@@ -20,6 +20,8 @@ interface UserSettingsState {
   setThemePreference: (themePreference: ThemePreference) => void;
   showRetriedLogs: boolean;
   setShowRetriedLogs: (showRetriedLogs: boolean) => void;
+  showAllRuns: boolean;
+  setShowAllRuns: (showAllRuns: boolean) => void;
   searchModelHistory: string[];
   recordSearchModel: (model: string) => void;
   clearSearchModelHistory: () => void;
@@ -36,6 +38,10 @@ export const useUserSettings = create<UserSettingsState>()(
       showRetriedLogs: false,
       setShowRetriedLogs: (showRetriedLogs: boolean) => {
         set({ showRetriedLogs });
+      },
+      showAllRuns: false,
+      setShowAllRuns: (showAllRuns: boolean) => {
+        set({ showAllRuns });
       },
       searchModelHistory: [],
       recordSearchModel: (model: string) => {

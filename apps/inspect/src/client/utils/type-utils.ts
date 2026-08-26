@@ -45,6 +45,7 @@ export const previewTier = (
   started_at: preview.started_at,
   completed_at: preview.completed_at,
   primary_metric: preview.primary_metric,
+  metadata: preview.metadata,
 });
 
 /** The detailed-tier attributes: the flat columns re-derived from the header
@@ -122,6 +123,9 @@ export const toLogPreview = (header: EvalHeader | LogDetails): LogPreview => {
     completed_at: header.stats?.completed_at,
 
     primary_metric: primaryMetric(header.results),
+    // header.metadata, not header.eval.metadata: the former folds in post-hoc
+    // edits, matching what write_log_listing puts in listing.json.
+    metadata: header.metadata,
   };
 };
 
