@@ -98,6 +98,9 @@ export const useLogListColumns = (
   columns: LogListColumn[];
   /** Visibility map keyed by column id — passed to the DataGrid. */
   visibility: Record<string, boolean>;
+  /** True when the wrapped framing columns are part of the view, so the grid
+   *  can give rows the height wrapped text needs. */
+  wrappedColumns: boolean;
   /** Subset passed to the ColumnSelectorPopover so the picker only lists
    *  checkboxes for the currently active view mode. A lightweight shim
    *  (`colId` + `headerName`) of the full column defs. */
@@ -127,6 +130,29 @@ export const useLogListColumns = (
   // listing loads there are simply no scorer columns yet, and listing errors
   // render in LogsPanel's error surface.
   const scorerMap = useScoreSchema(logDir, scopeDir).data ?? kNoScorerMap;
+
+  const listingRows = useLogListing(logDir).data ?? kNoListingRows;
+  const hasSampleLimits = useMemo(() => {
+    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
+    return listingRows.some(
+      (row) =>
+        (!prefix || row.name.startsWith(prefix)) &&
+        (row.header?.sampleLimits.length ?? 0) > 0
+    );
+  }, [listingRows, scopeDir]);
+
+  const hasAttackMetadata = useMemo(() => {
+    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
+    return listingRows.some((row) => {
+      if (prefix && !row.name.startsWith(prefix)) return false;
+      const attack = row.metadata?.["attack"];
+      return attack !== null && typeof attack === "object";
+    });
+  }, [listingRows, scopeDir]);
+
+  // Wrapped layout is on exactly when the framing columns are, so the task
+  // column's own cell can match their multi-line shape.
+  const wrapCells = hasAttackMetadata;
 
   const allColumns = useMemo((): LogListColumn[] => {
     const baseColumns: LogListColumn[] = [
@@ -185,7 +211,12 @@ export const useLogListColumns = (
               <span className={styles.taskText}>{value}</span>
             );
           return (
-            <div className={styles.nameCell}>
+            <div
+              className={clsx(
+                styles.nameCell,
+                wrapCells && styles.wrapNameCell
+              )}
+            >
               {href ? (
                 <a
                   href={href}
@@ -506,7 +537,7 @@ export const useLogListColumns = (
         cell: ({ getValue }) => {
           const value = getValue<string | undefined>();
           if (!value) return <EmptyCell />;
-          return <div className={styles.nameCell}>{value}</div>;
+          return <div className={styles.wrapCell}>{value}</div>;
         },
       },
       {
@@ -519,7 +550,7 @@ export const useLogListColumns = (
         cell: ({ getValue }) => {
           const value = getValue<string | undefined>();
           if (!value) return <EmptyCell />;
-          return <div className={styles.nameCell}>{value}</div>;
+          return <div className={styles.wrapCell}>{value}</div>;
         },
       },
       {
@@ -532,7 +563,7 @@ export const useLogListColumns = (
         cell: ({ getValue }) => {
           const value = getValue<string | undefined>();
           if (!value) return <EmptyCell />;
-          return <div className={styles.nameCell}>{value}</div>;
+          return <div className={styles.wrapCell}>{value}</div>;
         },
       },
       {
@@ -843,30 +874,15 @@ export const useLogListColumns = (
     }
 
     return allCols;
-  }, [scorerMap, mode]);
+  }, [scorerMap, mode, wrapCells]);
 
   // Auto-promote `sampleLimits` to default-visible when any in-scope log
   // has a sample that ended with a limit (an ingestion-derived header fact).
-  const listingRows = useLogListing(logDir).data ?? kNoListingRows;
-  const hasSampleLimits = useMemo(() => {
-    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
-    return listingRows.some(
-      (row) =>
-        (!prefix || row.name.startsWith(prefix)) &&
-        (row.header?.sampleLimits.length ?? 0) > 0
-    );
-  }, [listingRows, scopeDir]);
+
 
   // Attack columns are meaningless for a log dir that carries no attack
   // framing, so they default hidden there rather than showing empty cells.
-  const hasAttackMetadata = useMemo(() => {
-    const prefix = scopeDir ? scopePrefix(scopeDir) : undefined;
-    return listingRows.some((row) => {
-      if (prefix && !row.name.startsWith(prefix)) return false;
-      const attack = row.metadata?.["attack"];
-      return attack !== null && typeof attack === "object";
-    });
-  }, [listingRows, scopeDir]);
+
 
   // Default hidden columns per mode
   const defaultHiddenFields = useMemo(() => {
@@ -994,6 +1010,7 @@ export const useLogListColumns = (
   return {
     columns: allColumns,
     visibility,
+    wrappedColumns: hasAttackMetadata,
     pickerColumns,
     getValue,
     getComparator,
