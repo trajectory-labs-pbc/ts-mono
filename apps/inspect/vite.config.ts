@@ -160,13 +160,12 @@ export default defineConfig(({ mode }) => {
             entryFileNames: `assets/[name]-[hash].js`,
             chunkFileNames: `assets/[name]-[hash].js`,
             assetFileNames: `assets/[name]-[hash].[ext]`,
+            // mathjax is deliberately NOT given a vendor chunk: markdown-it-mathjax3
+            // loads mathjax-full's xmldom/xpath shims with top-level await, so a
+            // shared chunk that the entry imports statically and that those lazy
+            // shims import back deadlocks module evaluation (blank viewer, no error).
+            // Leaving it to the bundler keeps the TLA module on the lazy path only.
             manualChunks(id) {
-              if (
-                id.includes("mathjax") ||
-                id.includes("markdown-it-mathjax3")
-              ) {
-                return "vendor-mathjax";
-              }
               if (id.includes("@codemirror") || id.includes("@lezer")) {
                 return "vendor-codemirror";
               }
