@@ -95,6 +95,7 @@ export {
 export {
   ChatView,
   ChatViewRowsVirtualList,
+  ChatViewVirtualList,
 } from "@tsmono/inspect-components/chat";
 export type {
   ChatViewDisplayOptions,
@@ -103,6 +104,7 @@ export type {
   ChatViewProps,
   ChatViewRowsVirtualListProps,
   ChatViewToolOptions,
+  ChatViewVirtualListProps,
   MessageRow,
   MessageRowOptions,
 } from "@tsmono/inspect-components/chat";
