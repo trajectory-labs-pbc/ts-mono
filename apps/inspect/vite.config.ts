@@ -166,10 +166,12 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
-      // Unhashed like the app's own chunks, so the committed dist in the
-      // Python repo keeps stable file names.
+      // Content-hashed like the bundle's entry and chunks: a host that serves
+      // assets/ as immutable would otherwise keep browsers on a stale worker.
       worker: {
-        rollupOptions: { output: { entryFileNames: "assets/[name].js" } },
+        rollupOptions: {
+          output: { entryFileNames: "assets/[name]-[hash].js" },
+        },
       },
       build: {
         outDir: isE2e ? "dist-e2e" : "dist",
