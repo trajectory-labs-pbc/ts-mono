@@ -132,7 +132,7 @@ export default defineConfig(({ mode }) => {
         },
         cssCodeSplit: false,
         sourcemap: true,
-        minify: false,
+        minify: true,
       },
     };
   } else {
@@ -148,7 +148,6 @@ export default defineConfig(({ mode }) => {
         warnIfWatchingWithoutSubmodule("inspect_ai"),
         ...(isE2e ? [] : [copyToPythonRepo()]),
       ],
-      mode: "development",
       base: "",
       // Overrides postcss.config.cjs, whose inlining is for the library's
       // self-contained stylesheet: the app serves its fonts as files, since
@@ -175,12 +174,26 @@ export default defineConfig(({ mode }) => {
       build: {
         outDir: isE2e ? "dist-e2e" : "dist",
         emptyOutDir: true,
-        minify: false,
+        minify: mode !== "development",
         rollupOptions: {
           output: {
             entryFileNames: `assets/index.js`,
             chunkFileNames: `assets/[name].js`,
             assetFileNames: `assets/[name].[ext]`,
+            manualChunks(id) {
+              if (
+                id.includes("mathjax") ||
+                id.includes("markdown-it-mathjax3")
+              ) {
+                return "vendor-mathjax";
+              }
+              if (id.includes("@codemirror") || id.includes("@lezer")) {
+                return "vendor-codemirror";
+              }
+              if (id.includes("ag-grid")) {
+                return "vendor-ag-grid";
+              }
+            },
           },
         },
         sourcemap: true,
